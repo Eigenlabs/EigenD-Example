@@ -1,0 +1,11 @@
+<<<
+#include "example.h"
+>>>
+
+from piw[piw/piw.pip] import clockdomain_ctl,cookie
+
+class example[cfiltertemplate::example_t]
+{
+    example(const cookie &,clockdomain_ctl *)
+    cookie cookie()
+}
