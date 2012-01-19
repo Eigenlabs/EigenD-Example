@@ -33,7 +33,7 @@ namespace
 {
     struct example_func_t: piw::cfilterfunc_t
     {
-        example_func_t(const piw::data_t &path) : path_(path)
+        example_func_t(const piw::data_t &path)
         {
             pic::logmsg() << "create " << path;
         }
@@ -80,8 +80,6 @@ namespace
 
             return false;
         }
-
-        const piw::data_t path_;
 
         piw::data_nb_t id_;
     };
