@@ -99,7 +99,7 @@ namespace cfiltertemplate
     };
 }
 
-cfiltertemplate::example_t::example_t(const piw::cookie_t &output, piw::clockdomain_ctl_t *domain) : impl_(new impl_t(output,domain)) {}
+cfiltertemplate::example_t::example_t(const piw::cookie_t &output, piw::clockdomain_ctl_t *domain) : impl_(new impl_t(output, domain)) {}
 piw::cookie_t cfiltertemplate::example_t::cookie() { return impl_->cookie(); }
 cfiltertemplate::example_t::~example_t() { delete impl_; }
 
