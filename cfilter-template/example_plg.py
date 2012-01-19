@@ -24,8 +24,9 @@ import piw
 import cfiltertemplate_native
 
 class Agent(agent.Agent):
-    def __init__(self,address, ordinal):
-        agent.Agent.__init__(self,signature=version,names='example',ordinal=ordinal)
+    def __init__(self, address, ordinal):
+        agent.Agent.__init__(self, signature=version, names='example', ordinal=ordinal)
+
         self.domain = piw.clockdomain_ctl()
 
         self[1] = atom.Atom(names='outputs')
@@ -33,6 +34,7 @@ class Agent(agent.Agent):
         self.output = bundles.Splitter(self.domain, self[1][1])
 
         self.example = cfiltertemplate_native.example(self.output.cookie(), self.domain)
+
         self.input = bundles.VectorInput(self.example.cookie(), self.domain, signals=(1, 2))
 
         self[2] = atom.Atom(names='inputs')
