@@ -19,17 +19,17 @@
 
 Import('master_env')
 
-master_env.PiExternalRelease('2.0.35-experimental')
+master_env.PiExternalRelease('2.0.35-experimental',organisation='Eigenlabs Examples')
 
 plg_files = Split("""
     example.cpp
 """)
 
-master_env.PiPythonPackage(package='cfiltertemplate',agent_package=True)
+master_env.PiPythonPackage(package='cfiltertemplate',per_agent='plg_cfiltertemplate')
 master_env.PiAgent('example','plg_cfiltertemplate','example_plg',cversion='1.0.0')
 
-master_env.PiSharedLibrary('lib_cfiltertemplate',plg_files,libraries=Split('pic piw pie pia'),package='cfiltertemplate',per_agent="plg_cfiltertemplate")
-master_env.PiPipBinding('cfiltertemplate_native','cfiltertemplate.pip',libraries=Split('lib_cfiltertemplate pic piw pie pia'),package='cfiltertemplate',per_agent="plg_cfiltertemplate")
+master_env.PiSharedLibrary('lib_cfiltertemplate',plg_files,libraries=Split('pic piw pia'),package='cfiltertemplate',per_agent="plg_cfiltertemplate")
+master_env.PiPipBinding('cfiltertemplate_native','cfiltertemplate.pip',libraries=Split('lib_cfiltertemplate pic piw pia'),package='cfiltertemplate',per_agent="plg_cfiltertemplate")
 
 master_env.PiPackageDescription('cfiltertemplate',desc='EigenD CFilter Template Agent',groups=('contrib',))
 master_env.PiPackageCollection('cfiltertemplate',groups=('contrib',))
