@@ -17,7 +17,7 @@
 # along with EigenD.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from pi import agent,atom,domain,errors,action,policy,utils,bundles,paths
+from pi import agent,atom,domain,policy,bundles
 from . import example_version as version
 
 import piw
