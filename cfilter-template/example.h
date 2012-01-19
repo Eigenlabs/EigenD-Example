@@ -24,11 +24,11 @@
 #include <piw/piw_clock.h>
 #include <piw/piw_data.h>
 
-#include <lib_cfiltertemplate_exports.h>
+#include <cfiltertemplate_exports.h>
 
 namespace cfiltertemplate
 {
-    class LIB_CFILTERTEMPLATE_DECLSPEC_CLASS example_t
+    class CFILTERTEMPLATE_DECLSPEC_CLASS example_t
     {
         public:
             example_t(const piw::cookie_t &output, piw::clockdomain_ctl_t *domain);

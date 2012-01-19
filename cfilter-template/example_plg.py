@@ -37,7 +37,7 @@ class Agent(agent.Agent):
 
         self[2] = atom.Atom(names='inputs')
         self[2][1] = atom.Atom(domain=domain.BoundedFloat(0,1), names="volume input", policy=self.input.local_policy(1,policy.IsoStreamPolicy(1,0,0)))
-        self[2][1] = atom.Atom(domain=domain.BoundedFloat(0,96000, rest=440), names="frequency input", policy=self.input.merge_policy(2,False))
+        self[2][2] = atom.Atom(domain=domain.BoundedFloat(0,96000, rest=440), names="frequency input", policy=self.input.merge_policy(2,False))
 
 agent.main(Agent)
 
