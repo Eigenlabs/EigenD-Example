@@ -22,7 +22,6 @@
 
 #include <piw/piw_bundle.h>
 #include <piw/piw_clock.h>
-#include <piw/piw_data.h>
 
 namespace cfiltertemplate
 {

@@ -17,11 +17,8 @@
  along with EigenD.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <piw/piw_clock.h>
 #include <piw/piw_cfilter.h>
 #include <piw/piw_data.h>
-
-#include <picross/pic_float.h>
 
 #include "example.h"
 
@@ -68,7 +65,7 @@ namespace
                 switch(signal)
                 {
                     // process the signal values here and change
-                    // the buffer_out to generate apporiate audio
+                    // the buffer_out to generate appropriate audio
                 }
             }
 
