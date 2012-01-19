@@ -1,0 +1,9 @@
+env.sh
+env.cmd
+*.pyc
+tags
+tmp
+tools
+*.lnk
+.DS_Store
+*.swp
