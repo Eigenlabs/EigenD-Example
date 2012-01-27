@@ -3,7 +3,8 @@ env.cmd
 *.pyc
 tags
 tmp
-tools
 *.lnk
 .DS_Store
 *.swp
+tools/.sconsign.dblite
+*/tools

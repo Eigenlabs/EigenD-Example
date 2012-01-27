@@ -1,1 +1,8 @@
 A growing collection of example agents and templates to start working from.
+
+Please look at http://www.eigenlabs.com/wiki/edit/EigenD_Contrib/
+
+cfilter-template
+
+    A tiny example using the cfilter helper, which is useful for 
+    simple agents which filter events.
