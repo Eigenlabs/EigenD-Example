@@ -111,13 +111,12 @@ class PiDarwinEnvironment(unix_tools.PiUnixEnvironment):
         unix_tools.PiUnixEnvironment.__init__(self,platform,'usr/pi','Library/Eigenlabs',python='/usr/pi/bin/python')
         os_major=uname()[2].split('.')[0]
         self.Append(LIBS=Split('dl m pthread'))
-
-        self.Append(CCFLAGS=Split('-arch i386 -DDEBUG_DATA_ATOMICITY_DISABLED -DPI_PREFIX=\\"$PI_PREFIX\\"'))
-        self.Append(LINKFLAGS=Split('-arch i386 -framework Accelerate -Wl,-rpath,@executable_path/'))
+        self.Append(CCFLAGS=Split('-arch i386 -DDEBUG_DATA_ATOMICITY_DISABLED -DPI_PREFIX=\\"$PI_PREFIX\\" -mmacosx-version-min=10.6'))
+        self.Append(LINKFLAGS=Split('-arch i386 -framework Accelerate -Wl,-rpath,@executable_path/ -no_compact_linkedit -mmacosx-version-min=10.6'))
         self.Replace(CXX='g++-4.2')
         self.Replace(CC='gcc-4.2')
 
-        self.Append(CCFLAGS=Split('-ggdb -Werror -Wall -O3 -fmessage-length=0 -falign-loops=16 -msse3'))
+        self.Append(CCFLAGS=Split('-ggdb -Werror -Wall -Wno-deprecated-declarations -Wno-format -O4 -fmessage-length=0 -falign-loops=16 -msse3'))
 
         self.Replace(PI_DLLENVNAME='DYLD_LIBRARY_PATH')
         self.Replace(IS_MACOSX=os_major)
@@ -148,6 +147,31 @@ class PiDarwinEnvironment(unix_tools.PiUnixEnvironment):
 
         for c in self.shared.collections:
             mpkg = self.make_mpkg(c,pkgs)
+
+    def GetLockMarker(self,tag,locked=False):
+        if not locked:
+            return []
+
+        marker_name = "%s_fastmark.c" % tag
+
+        def action(target,source,env):
+            t = target[0].abspath
+            outp = file(t,"w")
+            outp.write(source[0].value)
+            outp.close()
+
+        marker_node = self.Command(marker_name,self.Value(fastmark_template),action)
+        return marker_node
+
+    def PiSharedLibrary(self,target,sources,locked=False,**kwds):
+        sources.extend(self.GetLockMarker(target,locked))
+        return unix_tools.PiUnixEnvironment.PiSharedLibrary(self,target,sources=sources,**kwds)
+        
+
+    def PiPipBinding(self,module,spec,sources=[],locked=False,**kwds):
+        sources.extend(self.GetLockMarker(module,locked))
+        return unix_tools.PiUnixEnvironment.PiPipBinding(self,module,spec,sources=sources,**kwds)
+
 
     def PiPythonwWrapper(self,name,pypackage,module,main,appname=None,bg=False,private=False,usegil=False,di=False,package=None):
         env = self.Clone()
@@ -245,6 +269,8 @@ class PiDarwinEnvironment(unix_tools.PiUnixEnvironment):
             f.write("    <key>CFBundleVersion</key><string>%s</string>\n" % env.subst('$PI_RELEASE') )
             f.write("    <key>LSBackgroundOnly</key>%s\n" % bgs)
             f.write("    <key>LSUIElement</key>%s\n" % di_active )
+            if env.subst('$PI_HIRES'):
+                f.write("    <key>NSHighResolutionCapable</key><true/>\n")
             f.write("</dict>\n")
             f.write("</plist>\n")
             f.close()
@@ -328,7 +354,7 @@ class PiDarwinEnvironment(unix_tools.PiUnixEnvironment):
         pkgfile = env.File(pkgname,env.Dir('pkg',env.Dir('$PKGDIR')))
 
         def make_pkg(target,source,env):
-            cmd = 'pkgbuild --identifier %s --component-plist %s --scripts %s --version %s --root %s %s' % (name.capitalize(),infonode[0].abspath,scriptdir.abspath,v,source[0].abspath,target[0].abspath)
+            cmd = 'pkgbuild --identifier com.eigenlabs.%s-%s --component-plist %s --scripts %s --version %s --root %s %s' % (name.capitalize(),v,infonode[0].abspath,scriptdir.abspath,v,source[0].abspath,target[0].abspath)
             print cmd
             os.system(cmd)
 
@@ -388,7 +414,7 @@ class PiDarwinEnvironment(unix_tools.PiUnixEnvironment):
             for pkg in included_pkgnames:
                 f.write('  <pkg-ref id="%s"/>\n' % pkg.capitalize())
 
-            f.write('  <options customize="never" require-scripts="false" rootVolumeOnly="true"/>\n')
+            f.write('  <options customize="never" allow-external-scripts="true" require-scripts="false" rootVolumeOnly="true"/>\n')
 
             if prereq:
                 f.write('  <volume-check script="pm_volume_check();"/>\n')
@@ -437,11 +463,15 @@ class PiDarwinEnvironment(unix_tools.PiUnixEnvironment):
         self.Alias('target-mpkg',mpkgnode)
         return mpkgnode
 
-    def PiExternalRelease(self,version,organisation):
-        if not self.PiRelease('contrib',version,organisation):
+    def PiExternalRelease(self,version,compatible,organisation):
+        if not self.PiRelease('contrib',compatible,compatible,organisation):
             return
 
         root = '/usr/pi'
         dist = os.path.join(root,'release-%s' % version)
         self.Append(LIBPATH=[os.path.join(dist,'bin')])
         self.Append(CPPPATH=[os.path.join(dist,'include')])
+
+fastmark_template = """
+static const __attribute((section("__DATA,__fastdata"))) __attribute__((used)) unsigned fastmark__ = 0;
+"""

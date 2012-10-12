@@ -115,7 +115,7 @@ class PiGenericEnvironment(SCons.Environment.Environment):
             root1 = e2.subst('$HDRSTAGEDIR')
             e2.Install(root1,run_exp)
 
-    def PiSharedLibrary(self,target,sources,libraries={},package=None,hidden=True,deffile=None,per_agent=None,public=False):
+    def PiSharedLibrary(self,target,sources,libraries={},package=None,hidden=True,deffile=None,per_agent=None,public=False,locked=False):
         env = self.Clone()
         env.Append(PILIBS=libraries)
         env.Append(CCFLAGS='-DBUILDING_%s' % target.upper())
@@ -172,10 +172,10 @@ class PiGenericEnvironment(SCons.Environment.Environment):
         if not self.shared.release:
             raise RuntimeError('PiRelease not called')
 
-        print "building release",self.subst('$PI_RELEASE')
+        print "building release",self.subst('$PI_RELEASE'),'compatible with',self.subst('$PI_COMPATIBLE')
 
         for (k,v) in self.shared.agent_groups.items():
-            self.__build_manifest(k,v[0],v[1])
+            self.__build_manifest(k,v[0],v[1],v[2])
 
 
     def __getpython(self):
@@ -332,6 +332,7 @@ class PiGenericEnvironment(SCons.Environment.Environment):
         self.Replace(IS_BIGENDIAN=False)
 
         self.Replace(PI_RELEASE=lambda target,source,env,for_signature: self.shared.release)
+        self.Replace(PI_COMPATIBLE=lambda target,source,env,for_signature: self.shared.compatible)
         self.Replace(PI_COLLECTION=lambda target,source,env,for_signature: self.shared.collection)
         self.Replace(PI_ORGANISATION=lambda target,source,env,for_signature: self.shared.organisation)
 
@@ -405,6 +406,79 @@ class PiGenericEnvironment(SCons.Environment.Environment):
             pyc_node=self.Command(join(root1,fqd+'c'),fqs,'"$PI_PYTHON" "$PI_COMPILER" $TARGET $SOURCE')
             if root2:
                 self.InstallAs(self.File(join(root2,fqd+'c')),pyc_node)
+
+    @staticmethod
+    def read_lexicon(source,e2m):
+        m2e=dict()
+        input=file(source)
+        lineno=0
+
+        for line in input:
+            lineno=lineno+1
+
+            fields = line.split(':')
+
+            if len(fields) != 4:
+                continue
+
+            music = ''.join(fields[0].split())
+            classification = fields[2].strip().lower()
+            english = fields[1].strip().lower()
+
+            if english == '' or english == 'unused' or classification == 'unused' or classification == '':
+                continue
+
+            if music:
+                if not music.isdigit():
+                    return 'line %d invalid music word: %s' % (lineno,music)
+
+                if music in m2e:
+                    return 'line %d duplicate music word: %s' % (lineno,music)
+            else:
+                music = None
+
+            if english in e2m:
+                return 'line %d duplicate english word: %s' % (lineno,english)
+
+            e2m[english]=(music,classification)
+
+            if music:
+                m2e[music]=(english,classification)
+
+        return None
+
+
+    @staticmethod
+    def build_lexicon(target,source,env):
+        e2m=dict()
+
+        err = PiGenericEnvironment.read_lexicon(source[0].abspath,e2m)
+        if err:
+            raise SCons.Errors.BuildError(node=source,errstr=err)
+
+        output=file(target[0].abspath,'w')
+
+        output.write('lexicon={\n')
+        for (e,(m,c)) in e2m.iteritems():
+            e = e.replace("'","\\'")
+            if m is not None:
+                output.write("    '%s': ('%s','%s'),\n" % (e,m,c))
+            else:
+                output.write("    '%s': (None,'%s'),\n" % (e,c))
+        output.write("}\n");
+
+        output.write('reverse_lexicon={\n')
+        for (e,(m,c)) in e2m.iteritems():
+            e = e.replace("'","\\'")
+            if m is not None:
+                output.write("    '%s': ('%s','%s'),\n" % (m,e,c))
+        output.write("}\n");
+
+        output.close()
+
+
+    def PiLexicon(self,target,source,package=None,per_agent=None):
+        return self.PiDynamicPython(target,source,PiGenericEnvironment.build_lexicon,package=package,per_agent=per_agent)
 
     def PiDynamicPython(self,target,source,builder,package=None,per_agent=None):
         env = self.Clone()
@@ -509,11 +583,12 @@ class PiGenericEnvironment(SCons.Environment.Environment):
         runroot = join(env['RESRUNDIR'],section)
         env.Install(runroot,res)
 
-    def PiRelease(self,collection,release,organisation=None):
+    def PiRelease(self,collection,release,compatible,organisation=None):
         if self.shared.release:
             return False
         c = collection or 'release'
         self.shared.release=release
+        self.shared.compatible=compatible
         self.shared.collection=c
         self.shared.organisation=organisation or 'Eigenlabs'
         return True
@@ -522,7 +597,7 @@ class PiGenericEnvironment(SCons.Environment.Environment):
         if ag:
             self.Replace(PI_AGENTGROUP=ag)
             if not ag in self.shared.agent_groups:
-                self.shared.agent_groups[ag] = [None,[]]
+                self.shared.agent_groups[ag] = [None,[],{}]
 
     def set_python_pkg(self,pkg):
         self.Replace(PI_PYTHONPKG=pkg)
@@ -589,7 +664,8 @@ class PiGenericEnvironment(SCons.Environment.Environment):
             return repr(repr(s)[1:-1])[1:-1]
 
         subst=dict(
-               release=self.subst('$PI_RELEASE'),
+               release = self.subst('$PI_RELEASE'),
+               compatible = self.subst('$PI_COMPATIBLE'),
                platform = self['PI_PLATFORM'],
                resrundir = escape(self.Dir(self['RESRUNDIR']).abspath),
                binrundir = escape(self.Dir(self['BINRUNDIR']).abspath),
@@ -631,7 +707,7 @@ class PiGenericEnvironment(SCons.Environment.Environment):
 
         return self.Command(target,self.Value(text),action)
 
-    def PiPipBinding(self,module,spec,sources=[],libraries={},package=None,hidden=True,per_agent=None):
+    def PiPipBinding(self,module,spec,sources=[],libraries={},package=None,hidden=True,per_agent=None,locked=True):
         me=self.Dir('.').abspath
 
         inc=' '.join(map(lambda x: '"%s"'% self.Dir(x).abspath,self['CPPPATH']))
@@ -669,14 +745,20 @@ class PiGenericEnvironment(SCons.Environment.Environment):
         stagesource = etc_env.Install(etc_env['ETCSTAGEDIR'],source)
         return stagesource
 
-    def PiAgent(self,name,pypackage,pymodule,cversion,extra=[]):
+    def PiAgent(self,name,pypackage,pymodule,cversion,extra=[],lexicon=None):
         version = '.'.join(self.subst('$PI_RELEASE').split('.'))
         env = self.Clone()
         meta = (name,pymodule,cversion,version,extra)
         env.set_agent_group(pypackage)
         env.shared.agent_groups[pypackage][1].append(meta)
 
-    def __build_manifest(self,module,package,agent_list):
+        if lexicon:
+            lexfile = env.File(lexicon).srcnode().abspath
+            e2m = dict()
+            err = env.read_lexicon(lexfile,e2m)
+            env.shared.agent_groups[pypackage][2].update(e2m)
+
+    def __build_manifest(self,module,package,agent_list,manifest):
         env = self.Clone()
 
         env.set_agent_group(module)
@@ -696,19 +778,26 @@ class PiGenericEnvironment(SCons.Environment.Environment):
 
 
         textnodes = []
+
         for a in agent_list:
             extra = ':'.join(a[4])
             if extra: extra=':'+extra
-            textnodes.append(env.Value('%s:%s:%s:%s%s' % (a[0],a[1],a[2],a[3],extra)))
+            textnodes.append(env.Value('agent %s:%s:%s:%s%s' % (a[0],a[1],a[2],a[3],extra)))
             vnode = env.Command(join(env.subst("$MODRUNDIR_PLUGIN"),'%s_version.py' % a[0]),[env.Value(a[0]),env.Value(a[2])],build_version)
             if package:
                 env.Install(env.subst("$MODSTAGEDIR_PLUGIN"),vnode)
 
+        for (e,(m,c)) in manifest.items():
+            textnodes.append(env.Value('vocab %s:%s:%s' % (e,m,c)))
+
+
         def build_manifest(target,source,env):
             t = target[0].abspath
             outp = file(t,"w")
+
             for a in source:
-                outp.write("%s\n" % a.value)
+                outp.write("%s\n" % a.value.lower())
+
             outp.close()
 
         mnode = env.Command(join(env.subst("$MODRUNDIR_PLUGIN"),'Manifest'),textnodes,build_manifest)

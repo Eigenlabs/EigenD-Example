@@ -30,6 +30,7 @@ import SCons.Environment
 import generic_tools
 import shutil
 import _winreg
+import re
 
 from os.path import join,isdir
 from os import listdir
@@ -129,10 +130,12 @@ class PiWindowsEnvironment(generic_tools.PiGenericEnvironment):
         self.Replace(RELEASESTAGEDIR=join('$STAGEDIR','$PI_COLLECTION-$PI_RELEASE'))
         self.Append(CCFLAGS='/EHsc /w34355 /MD /O2 /fp:fast /arch:SSE2 /DWIN32')
         self.Replace(PI_PLATFORMTYPE='windows')
-        self.Append(LINKFLAGS=Split('/MANIFEST /INCREMENTAL:NO'))
+        self.Append(LINKFLAGS=Split('/MANIFEST /INCREMENTAL:NO /LARGEADDRESSAWARE'))
         self.Append(SHLINK=' $LIBMAPPER')
         self.Append(LINK=' $LIBMAPPER')
         self.Append(LIBS=Split('shell32'))
+
+        self.Replace(LINKFLAGS_LOCKED=Split("/SECTION:.text,!P /SECTION:.data,!P /SECTION:.rdata,!P /SECTION:.bss,!P"))
 
         if os.environ.get('PI_DEBUGBUILD'):
             self.Append(CCFLAGS=Split('/Zi'))
@@ -168,6 +171,8 @@ class PiWindowsEnvironment(generic_tools.PiGenericEnvironment):
 
     def make_wxs(self,name,filename,package):
         version = self.subst('$PI_RELEASE').split('-')[0]
+        if re.match("^\\d+\\.\\d+$", version):
+            version = version+".0"
         print 'wsx for collection',name,'containing',package
         meta = self.shared.package_descriptions[package]
 
@@ -559,14 +564,16 @@ class PiWindowsEnvironment(generic_tools.PiGenericEnvironment):
 
         run_binary=env.Install(env.subst('$BINRUNDIR'),bld_binary)
         run_pdb=env.Install(env.subst('$BINRUNDIR'),bld_pdb)
-        env.set_subsystem(run_binary,'WINDOWS')
 
         rv.extend(run_binary)
 
         if gui:
             con_binary = env.InstallAs(env.File(join(env.subst('$BINRUNDIR'),'%s_con.exe' % name)),bld_binary)
+            env.set_subsystem(run_binary,'WINDOWS')
             env.set_subsystem(con_binary,'CONSOLE')
             rv.extend(con_binary)
+        else:
+            env.set_subsystem(run_binary,'CONSOLE')
 
         inst_binary = []
 
@@ -612,13 +619,24 @@ class PiWindowsEnvironment(generic_tools.PiGenericEnvironment):
         return env.addlibname(run_library1[0],target)
 
 
-    def PiSharedLibrary(self,target,sources,libraries=[],package=None,hidden=True,deffile=None,per_agent=None,public=False):
+    def PiPipBinding(self,module,spec,locked=False,**kwds):
+        env = self.Clone()
+
+        if locked:
+            env.Append(LINKFLAGS=env.subst('$LINKFLAGS_LOCKED'))
+            
+        return generic_tools.PiGenericEnvironment.PiPipBinding(env,module,spec,**kwds)
+
+    def PiSharedLibrary(self,target,sources,libraries=[],package=None,hidden=True,deffile=None,per_agent=None,public=False,locked=False):
         env = self.Clone()
 
         env.Append(PILIBS=libraries)
         env.Append(CCFLAGS='-DBUILDING_%s' % target.upper())
         env.Replace(SHLIBNAME=target)
         env.Replace(PDB='%s.pdb' % target)
+
+        if locked:
+            env.Append(LINKFLAGS=env.subst('$LINKFLAGS_LOCKED'))
 
         env.set_agent_group(per_agent)
 
@@ -665,8 +683,8 @@ class PiWindowsEnvironment(generic_tools.PiGenericEnvironment):
         stagesource = etc_env.Install(etc_env.subst('$ETCSTAGEDIR'),name)
         self.shared.shortcuts.setdefault(package,[]).append((bigname,'etc\\%s\\%s' % (package,name)))
 
-    def PiExternalRelease(self,version,organisation):
-        if not self.PiRelease('contrib',version,organisation):
+    def PiExternalRelease(self,version,compatible,organisation):
+        if not self.PiRelease('contrib',compatible,compatible,organisation):
             return
 
         root = os.environ.get('ProgramFiles(x86)')
