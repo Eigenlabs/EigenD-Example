@@ -19,7 +19,7 @@
 
 Import('master_env')
 
-master_env.PiExternalRelease('2.0.35-experimental', organisation='Eigenlabs Examples')
+master_env.PiExternalRelease('2.1.0-experimental', '2.1-experimental', organisation='Eigenlabs Examples')
 
 plg_files = Split("""
     example.cpp
